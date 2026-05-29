@@ -12,7 +12,7 @@ router = Router()
 
 # مقدارها از env
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
-REFERRAL_NEEDED = int(os.getenv("REFERRAL_NEEDED", 5))
+REFERRAL_NEEDED = int(os.getenv("REFERRAL_NEEDED", 0))
 
 
 # ====================== کیبورد طرح‌ها ======================
