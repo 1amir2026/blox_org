@@ -21,3 +21,8 @@ def bg_color_keyboard():
         [InlineKeyboardButton(text="پس‌زمینه آبی تیره", callback_data="bg_darkblue")],
         [InlineKeyboardButton(text="پس‌زمینه بنفش", callback_data="bg_purple")]
     ])
+
+def join_channel_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📢 عضویت در کانال بلاکسی", url="https://t.me/BloxyDesign")]
+    ])
