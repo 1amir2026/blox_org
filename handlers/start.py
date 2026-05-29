@@ -5,7 +5,7 @@ from aiogram.types import Message, FSInputFile
 from sqlalchemy import select
 
 from keyboards.main import main_menu
-from keyboards.inline import join_channel_keyboard   # ← دکمه اینلاین از فایل inline.py
+from keyboards.inline import join_channel_keyboard
 from database.models import AsyncSessionLocal, User
 
 router = Router()
@@ -60,7 +60,7 @@ async def start(message: Message):
     photo = FSInputFile("designs.jpg")
 
     caption = (
-        "🎉 *به دنیای طراحی‌های اختصاصی بلاکسی خوش آمدید!*\\n\\n"
+        "🎉 *به دنیای طراحی‌های اختصاصی بلاکسی خوش آمدید\\!*\\n\\n"
         "اینجا جاییه که می‌تونی پروفایل‌های حرفه‌ای، تمیز و چشم‌نواز مخصوص خودت بسازی؛ "
         "پروفایل‌هایی که دقیقاً مطابق سلیقه‌ت طراحی می‌شن و ظاهر اکانتت رو چند برابر جذاب‌تر می‌کنن\\.\\n\\n"
         "برای شروع، فقط کافیه *لینک رفرال اختصاصی خودت* رو دریافت کنی و با دعوت دوستانت، "
@@ -70,18 +70,14 @@ async def start(message: Message):
         "تمام مراحل — از دریافت لینک رفرال تا انتخاب طرح و ارسال اسکین — مرحله‌به‌مرحله و بدون دردسر انجام می‌شه\\.\\n\\n"
         "اگر آماده‌ای، همین حالا شروع کن و اولین قدم رو بردار\\.\\n\\n"
         "📩 ارتباط با طراح:\\n"
-        "@BloxyDesign"
+        "\\@BloxyDesign"
     )
 
     await message.answer_photo(
         photo=photo,
         caption=caption,
-        reply_markup=join_channel_keyboard(),   # ← دکمه عضویت در کانال
+        reply_markup=join_channel_keyboard(),
         parse_mode="MarkdownV2"
     )
-
-    # ------------------------------
-    # ارسال کیبورد اصلی
-    # ------------------------------
 
     await message.answer("👇 از منوی زیر استفاده کنید:", reply_markup=main_menu)
