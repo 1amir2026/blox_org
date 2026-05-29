@@ -1,6 +1,6 @@
 from aiogram import Router
 from aiogram.filters import CommandStart
-from aiogram.types import Message
+from aiogram.types import Message, FSInputFile
 
 from sqlalchemy import select
 
@@ -28,7 +28,6 @@ async def start(message: Message):
             referred_by = None
 
             if len(args) > 1:
-
                 try:
                     referred_by = int(args[1])
                 except:
@@ -43,11 +42,9 @@ async def start(message: Message):
             session.add(new_user)
 
             if referred_by:
-
                 ref_result = await session.execute(
                     select(User).where(User.id == referred_by)
                 )
-
                 ref_user = ref_result.scalar_one_or_none()
 
                 if ref_user:
@@ -55,7 +52,28 @@ async def start(message: Message):
 
             await session.commit()
 
-    await message.answer(
-        "👋 خوش آمدید",
+    # ------------------------------
+    # ارسال عکس + متن خوش‌آمد جدید
+    # ------------------------------
+
+    photo = FSInputFile("designs.jpg")
+
+    caption = (
+        "🎉 **به دنیای طراحی‌های اختصاصی بلاکسی خوش آمدید!**\n\n"
+        "اینجا جاییه که می‌تونی پروفایل‌های حرفه‌ای، تمیز و چشم‌نواز مخصوص خودت بسازی؛ "
+        "پروفایل‌هایی که دقیقاً مطابق سلیقه‌ت طراحی می‌شن و ظاهر اکانتت رو چند برابر جذاب‌تر می‌کنن.\n\n"
+        "برای شروع، فقط کافیه **لینک رفرال اختصاصی خودت رو دریافت کنی** و با دعوت دوستانت، "
+        "امتیاز لازم برای ثبت سفارش رو جمع کنی. هر کاربری که با لینک تو وارد بات بشه، "
+        "یک قدم به دریافت پروفایل حرفه‌ای نزدیک‌تر می‌شی.\n\n"
+        "این بات کاملاً ساده، سریع و بدون پیچیدگی طراحی شده تا تجربه‌ای راحت و روان داشته باشی. "
+        "تمام مراحل—from دریافت لینک رفرال تا انتخاب طرح و ارسال اسکین—به صورت مرحله‌به‌مرحله و بدون دردسر انجام می‌شه.\n\n"
+        "اگر آماده‌ای، همین حالا شروع کن و اولین قدم رو بردار.\n\n"
+        "📩 ارتباط با طراح و مشاهده نمونه‌کارها:\n"
+        "@BloxyDesign"
+    )
+
+    await message.answer_photo(
+        photo=photo,
+        caption=caption,
         reply_markup=main_menu
     )
