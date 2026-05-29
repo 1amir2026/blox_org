@@ -2,9 +2,10 @@ from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.types import Message
 
+from sqlalchemy import select
+
 from keyboards.main import main_menu
 from database.models import AsyncSessionLocal, User
-from sqlalchemy import select
 
 router = Router()
 
@@ -12,44 +13,49 @@ router = Router()
 @router.message(CommandStart())
 async def start(message: Message):
 
-    user_id = message.from_user.id
-
-    cursor.execute(
-        "INSERT OR IGNORE INTO users (user_id) VALUES (?)",
-        (user_id,)
-    )
-    conn.commit()
-
     args = message.text.split()
 
-    if len(args) > 1:
+    async with AsyncSessionLocal() as session:
 
-        referrer_id = int(args[1])
-
-        if referrer_id != user_id:
-
-            cursor.execute(
-                "UPDATE users SET referrals = referrals + 1 WHERE user_id=?",
-                (referrer_id,)
-            )
-            conn.commit()
-
-            await message.answer(
-                "🎉 شما با لینک رفرال وارد شدید.",
-                reply_markup=main_menu
-            )
-
-            try:
-                await message.bot.send_message(
-                    referrer_id,
-                    f"🎉 یک نفر با لینک شما وارد شد.\n\n"
-                    f"👤 آیدی:\n{user_id}"
-                )
-            except:
-                pass
-
-    else:
-        await message.answer(
-            "👋 خوش آمدید",
-            reply_markup=main_menu
+        result = await session.execute(
+            select(User).where(User.id == message.from_user.id)
         )
+
+        user = result.scalar_one_or_none()
+
+        if not user:
+
+            referred_by = None
+
+            if len(args) > 1:
+
+                try:
+                    referred_by = int(args[1])
+                except:
+                    pass
+
+            new_user = User(
+                id=message.from_user.id,
+                username=message.from_user.username,
+                referred_by=referred_by
+            )
+
+            session.add(new_user)
+
+            if referred_by:
+
+                ref_result = await session.execute(
+                    select(User).where(User.id == referred_by)
+                )
+
+                ref_user = ref_result.scalar_one_or_none()
+
+                if ref_user:
+                    ref_user.referrals_count += 1
+
+            await session.commit()
+
+    await message.answer(
+        "👋 خوش آمدید",
+        reply_markup=main_menu
+    )

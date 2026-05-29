@@ -1,7 +1,9 @@
 from aiogram import Router, F
 from aiogram.types import Message
 
-from database import cursor
+from sqlalchemy import select
+
+from database.models import AsyncSessionLocal, User
 
 router = Router()
 
@@ -13,12 +15,15 @@ async def referral(message: Message):
 
     link = f"https://t.me/{bot_username}?start={message.from_user.id}"
 
-    cursor.execute(
-        "SELECT referrals FROM users WHERE user_id=?",
-        (message.from_user.id,)
-    )
+    async with AsyncSessionLocal() as session:
 
-    referrals = cursor.fetchone()[0]
+        result = await session.execute(
+            select(User).where(User.id == message.from_user.id)
+        )
+
+        user = result.scalar_one_or_none()
+
+        referrals = user.referrals_count if user else 0
 
     text = f"""
 🔗 لینک رفرال شما:
@@ -26,11 +31,6 @@ async def referral(message: Message):
 {link}
 
 👥 تعداد رفرال: {referrals}
-
-🎨 والپیپر: 5 رفرال
-🖼 طرح 1: 3 رفرال
-🖼 طرح 2: 3 رفرال
-🖼 طرح 3: 3 رفرال
 """
 
     await message.answer(text)
