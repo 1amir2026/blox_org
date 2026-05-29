@@ -1,10 +1,11 @@
 from aiogram import Router
 from aiogram.filters import CommandStart
-from aiogram.types import Message, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, FSInputFile
 
 from sqlalchemy import select
 
 from keyboards.main import main_menu
+from keyboards.inline import join_channel_keyboard   # ← دکمه اینلاین از فایل inline.py
 from database.models import AsyncSessionLocal, User
 
 router = Router()
@@ -53,16 +54,6 @@ async def start(message: Message):
             await session.commit()
 
     # ------------------------------
-    # کیبورد دکمه عضویت در کانال
-    # ------------------------------
-
-    join_keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="📢 عضویت در کانال", url="https://t.me/BloxyDesign")]
-        ]
-    )
-
-    # ------------------------------
     # ارسال عکس + متن خوش‌آمد
     # ------------------------------
 
@@ -85,9 +76,12 @@ async def start(message: Message):
     await message.answer_photo(
         photo=photo,
         caption=caption,
-        reply_markup=join_keyboard,
+        reply_markup=join_channel_keyboard(),   # ← دکمه عضویت در کانال
         parse_mode="MarkdownV2"
     )
 
-    # بعد از عکس، کیبورد اصلی هم بیاد
+    # ------------------------------
+    # ارسال کیبورد اصلی
+    # ------------------------------
+
     await message.answer("👇 از منوی زیر استفاده کنید:", reply_markup=main_menu)
