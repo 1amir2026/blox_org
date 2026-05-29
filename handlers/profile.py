@@ -1,6 +1,6 @@
+import os
 from aiogram import Router, F
-from aiogram.types import Message
-from aiogram.types import CallbackQuery
+from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.fsm.context import FSMContext
 
 from sqlalchemy import select
@@ -9,6 +9,10 @@ from database.models import AsyncSessionLocal, User
 from utils.states import ProfileStates
 
 router = Router()
+
+# مقدارها از env
+ADMIN_ID = int(os.getenv("ADMIN_ID"))
+REFERRAL_NEEDED = int(os.getenv("REFERRAL_NEEDED", 5))
 
 
 # ====================== کیبورد طرح‌ها ======================
@@ -26,23 +30,23 @@ def design_inline_keyboard():
 async def request_profile(message: Message, state: FSMContext):
     async with AsyncSessionLocal() as session:
         user = await session.get(User, message.from_user.id)
-        
+
         if not user or user.referrals_count < REFERRAL_NEEDED:
             await message.answer(
                 f"❌ شما هنوز شرط لازم را ندارید.\n"
-                f"تعداد رفرال شما: {user.referrals_count if user else 0}/5"
+                f"تعداد رفرال شما: {user.referrals_count if user else 0}/{REFERRAL_NEEDED}"
             )
             return
 
-    # ارسال عکس طرح‌ها + دکمه‌ها
-    photo = FSInputFile("designs.jpg")   # اسم فایل باید دقیقاً designs.jpg باشد
+    # ارسال عکس ثابت + دکمه‌ها
+    photo = FSInputFile("designs.jpg")
 
     await message.answer_photo(
         photo=photo,
         caption="🎨 لطفاً طرح مورد نظر خود را انتخاب کنید:",
         reply_markup=design_inline_keyboard()
     )
-    
+
     await state.set_state(ProfileStates.choosing_design)
 
 
@@ -51,11 +55,13 @@ async def request_profile(message: Message, state: FSMContext):
 async def choose_design(callback: CallbackQuery, state: FSMContext):
     design_num = callback.data.split("_")[1]
     await state.update_data(design=design_num)
-    
+
+    # فقط کپشن و دکمه‌ها عوض می‌شوند، عکس designs.jpg سر جایش می‌ماند
     await callback.message.edit_caption(
         caption="💡 حالا رنگ نورپردازی را انتخاب کنید:",
         reply_markup=light_color_keyboard()
     )
+
     await state.set_state(ProfileStates.choosing_light_color)
 
 
@@ -74,11 +80,12 @@ def light_color_keyboard():
 async def choose_light(callback: CallbackQuery, state: FSMContext):
     light_color = callback.data.split("_")[1]
     await state.update_data(light_color=light_color)
-    
+
     await callback.message.edit_caption(
         caption="🖼 حالا رنگ پس‌زمینه را انتخاب کنید:",
         reply_markup=bg_color_keyboard()
     )
+
     await state.set_state(ProfileStates.choosing_bg_color)
 
 
@@ -96,10 +103,11 @@ def bg_color_keyboard():
 async def choose_bg(callback: CallbackQuery, state: FSMContext):
     bg_color = callback.data.split("_")[1]
     await state.update_data(bg_color=bg_color)
-    
+
     await callback.message.edit_caption(
         caption="✅ حالا اسکین خود را به صورت فایل PNG ارسال کنید."
     )
+
     await state.set_state(ProfileStates.waiting_for_skin)
 
 
@@ -107,7 +115,7 @@ async def choose_bg(callback: CallbackQuery, state: FSMContext):
 @router.message(ProfileStates.waiting_for_skin, F.document | F.photo)
 async def receive_skin(message: Message, state: FSMContext):
     data = await state.get_data()
-    
+
     caption = f"""
 🆕 سفارش جدید پروفایل بلاکسی
 
