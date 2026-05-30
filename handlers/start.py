@@ -10,7 +10,7 @@ from database.models import AsyncSessionLocal, User
 
 router = Router()
 
-CHANNEL_ID = -1002267811430   # آیدی کانال BloxyDesign (اگر اشتباه است عوض کن)
+CHANNEL_ID = -1002375083668   # آیدی کانال BloxyDesign (اگر اشتباه است عوض کن)
 
 
 def force_join_keyboard():
