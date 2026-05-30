@@ -14,6 +14,7 @@ from handlers.admin_reply import router as admin_reply_router
 from handlers.admin_commands import router as admin_commands_router
 from handlers.admin_panel import router as admin_panel_router
 from keyboards.main import main_menu
+from middlewares.antispam import AntiSpamMiddleware
 
 
 load_dotenv()
@@ -32,6 +33,7 @@ dp.include_router(referral_router)
 dp.include_router(faq_router)
 dp.include_router(support_router)
 dp.include_router(info_router)
+dp.message.middleware(AntiSpamMiddleware(limit=0.7))
 
 async def main():
     print("✅ ربات روشن شد...")
