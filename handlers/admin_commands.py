@@ -1,66 +1,57 @@
-import os
-from aiogram import Router, F
+# admin_commands.py
+from aiogram import Router
 from aiogram.types import Message
 from sqlalchemy import select
+import logging
 
 from database.models import AsyncSessionLocal, User
 
 router = Router()
+logger = logging.getLogger(__name__)
 
-ADMIN_ID = int(os.getenv("ADMIN_ID"))
+# شناسه‌های تلگرام ادمین‌ها را اینجا قرار بده
+ADMINS = {5508686165}  # <-- این را با آی‌دی خودت یا لیست ادمین‌ها جایگزین کن
 
-
-@router.message(F.text.startswith("/giveref"))
-async def give_ref(message: Message):
-
-    # فقط ادمین
-    if message.from_user.id != ADMIN_ID:
-        return
-
-    parts = message.text.split()
-
-    if len(parts) < 3:
-        await message.answer("❗ فرمت درست:\n/giveref <user_id> <count | set X>")
-        return
-
-    target_id = int(parts[1])
-    action = parts[2]
-
-    async with AsyncSessionLocal() as session:
-        user = await session.get(User, target_id)
-
-        if not user:
-            await message.answer("❌ کاربر در دیتابیس پیدا نشد.")
+@router.message(lambda message: message.text and message.text.startswith("/giveref"))
+async def give_ref_handler(message: Message):
+    """
+    Usage:
+      /giveref <user_id> <count>
+    Example:
+      /giveref 987654321 1
+    """
+    try:
+        # دسترسی ادمین
+        if message.from_user.id not in ADMINS:
+            await message.reply("❌ دسترسی ندارید.")
             return
 
-        # حالت set
-        if action == "set":
-            if len(parts) < 4:
-                await message.answer("❗ فرمت درست:\n/giveref <user_id> set <number>")
-                return
-
-            new_value = int(parts[3])
-            user.referrals_count = new_value
-
-            await session.commit()
-            await message.answer(f"✅ مقدار رفرال کاربر {target_id} روی {new_value} تنظیم شد.")
+        parts = message.text.strip().split()
+        if len(parts) < 3:
+            await message.reply("فرمت درست: /giveref <user_id> <count>")
             return
 
-        # حالت add/remove
         try:
-            amount = int(action)
-        except:
-            await message.answer("❗ مقدار باید عدد باشد.")
+            target_id = int(parts[1])
+            count = int(parts[2])
+        except ValueError:
+            await message.reply("شناسه یا تعداد نامعتبر است. باید عدد وارد کنی.")
             return
 
-        user.referrals_count += amount
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(User).where(User.id == target_id))
+            user = result.scalar_one_or_none()
 
-        if user.referrals_count < 0:
-            user.referrals_count = 0
+            if not user:
+                # اگر می‌خواهی کاربر جدید بسازی، فیلدهای لازم را پر کن
+                user = User(id=target_id, username=None, referred_by=None, referrals_count=0)
+                session.add(user)
 
-        await session.commit()
+            # افزایش کانتر (مطمئن شو فیلد referrals_count وجود دارد)
+            user.referrals_count = (user.referrals_count or 0) + count
+            await session.commit()
 
-        await message.answer(
-            f"✅ رفرال کاربر {target_id} تغییر کرد.\n"
-            f"🔢 مقدار جدید: {user.referrals_count}"
-        )
+        await message.reply(f"✅ به کاربر `{target_id}` مقدار `{count}` رفرال اضافه شد.")
+    except Exception as e:
+        logger.exception("Error in /giveref handler: %s", e)
+        await message.reply("❗ خطا در اجرای دستور. لاگ‌ها را بررسی کن.")
