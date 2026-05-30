@@ -8,7 +8,7 @@ import logging
 from keyboards.main import main_menu
 from database.models import AsyncSessionLocal, User
 from handlers.membership import check_membership, force_join_keyboard
-from keyboards.main_reply import main_reply_keyboard
+from keyboards.main import main_menu
 
 router = Router()
 logging.basicConfig(level=logging.INFO)
@@ -137,7 +137,7 @@ async def start(message: Message, bot: Bot):
 
     # Send main menu
     try:
-        await message.answer("👇 از منوی زیر استفاده کنید:", reply_markup=main_menu)
+        await message.answer("👇 از منوی زیر استفاده کنید:", reply_markup=main_menu(message.from_user.id))
     except Exception as e:
         logging.exception("Failed to send main menu: %s", e)
 
