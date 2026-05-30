@@ -1,10 +1,10 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-CHANNEL_ID = -1002100624495   # کانال تست جدید
+CHANNEL_ID = -1002100624495   # کانال تست جدید یا کانال اصلی
 
 def force_join_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📢 عضویت در کانال", url="https://t.me/ghjusfghjkiuythy654rew")],
+        [InlineKeyboardButton(text="📢 عضویت در کانال", url="https://t.me/BloxyDesign")],
         [InlineKeyboardButton(text="✔️ تایید عضویت", callback_data="check_join")]
     ])
 
