@@ -10,6 +10,7 @@ from handlers.referral import router as referral_router
 from handlers.faq import router as faq_router
 from handlers.support import router as support_router
 from handlers.info import router as info_router
+from handlers.admin_reply import router as admin_reply_router
 
 load_dotenv()
 
@@ -24,6 +25,7 @@ dp.include_router(referral_router)
 dp.include_router(faq_router)
 dp.include_router(support_router)
 dp.include_router(info_router)
+dp.include_router(admin_reply_router)
 
 async def main():
     print("✅ ربات روشن شد...")
