@@ -1,13 +1,20 @@
+# keyboards/main.py
+import os
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
-main_menu = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="🖼 درخواست پروفایل")],
-        [KeyboardButton(text="🔗 لینک رفرال")],
-        [KeyboardButton(text="👤 مشخصات من")],
-        [KeyboardButton(text="❓ سوالات متداول")],
-        [KeyboardButton(text="📞 پشتیبانی")],
- ],
- 
-    resize_keyboard=True
-)
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+
+def main_menu(user_id: int):
+    kb = ReplyKeyboardMarkup(resize_keyboard=True)
+
+    kb.add(KeyboardButton(text="🖼 درخواست پروفایل"))
+    kb.add(KeyboardButton(text="🔗 لینک رفرال"))
+    kb.add(KeyboardButton(text="👤 مشخصات من"))
+    kb.add(KeyboardButton(text="❓ سوالات متداول"))
+    kb.add(KeyboardButton(text="📞 پشتیبانی"))
+
+    # فقط برای ادمین
+    if user_id == ADMIN_ID:
+        kb.add(KeyboardButton(text="👨🏻‍💻 پنل ادمین"))
+
+    return kb
