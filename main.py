@@ -24,14 +24,14 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 dp.include_router(start_router)
+dp.include_router(admin_panel_router)   # ← بیار بالا
+dp.include_router(admin_reply_router)
+dp.include_router(admin_commands_router)
 dp.include_router(profile_router)
 dp.include_router(referral_router)
 dp.include_router(faq_router)
 dp.include_router(support_router)
 dp.include_router(info_router)
-dp.include_router(admin_reply_router)
-dp.include_router(admin_commands_router)
-dp.include_router(admin_panel_router)
 
 async def main():
     print("✅ ربات روشن شد...")
