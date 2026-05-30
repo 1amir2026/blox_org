@@ -12,6 +12,9 @@ from handlers.support import router as support_router
 from handlers.info import router as info_router
 from handlers.admin_reply import router as admin_reply_router
 from handlers.admin_commands import router as admin_commands_router
+from handlers.admin_panel import router as admin_panel_router
+from keyboards.main_reply import main_reply_keyboard
+
 
 load_dotenv()
 
@@ -28,6 +31,7 @@ dp.include_router(support_router)
 dp.include_router(info_router)
 dp.include_router(admin_reply_router)
 dp.include_router(admin_commands_router)
+dp.include_router(admin_panel_router)
 
 async def main():
     print("✅ ربات روشن شد...")
