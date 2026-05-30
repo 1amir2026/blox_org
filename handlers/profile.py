@@ -20,14 +20,14 @@ router = Router()
 
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
-# نیازمندی رفرال برای هر طرح (بر اساس callback_data)
+# نیازمندی رفرال برای هر طرح
 REF_REQUIREMENTS = {
-    "design_1": 2,   # پروفایل 1 نیاز به 2 رفرال دارد
-    "design_2": 3,   # پروفایل 2 نیاز به 3 رفرال دارد
-    "design_3": 5,   # والپیپر نیاز به 5 رفرال دارد
+    "design_1": 2,   # پروفایل 1 → 2 رفرال
+    "design_2": 3,   # پروفایل 2 → 3 رفرال
+    "design_3": 5,   # والپیپر → 5 رفرال
 }
 
-# نام‌خوان برای نمایش در پیام‌ها
+# نام طرح‌ها
 DESIGN_NAMES = {
     "design_1": "پروفایل 1",
     "design_2": "پروفایل 2",
@@ -35,7 +35,7 @@ DESIGN_NAMES = {
 }
 
 
-# ====================== کیبورد داینامیک و کپشن داینامیک ======================
+# ====================== کیبورد انتخاب طرح + کپشن ======================
 async def design_keyboard_for_user_and_caption(user_id: int):
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.id == user_id))
@@ -93,9 +93,11 @@ async def choose_design(callback: CallbackQuery, state: FSMContext):
     await state.update_data(design=action)
 
     name = DESIGN_NAMES.get(action, "طرح انتخابی")
+
     async with AsyncSessionLocal() as session:
         user = await session.get(User, callback.from_user.id)
         current_refs = user.referrals_count if user and user.referrals_count else 0
+
     required = REF_REQUIREMENTS.get(action, 0)
 
     await callback.message.answer(
@@ -174,26 +176,19 @@ async def choose_bg(callback: CallbackQuery, state: FSMContext):
 # ====================== دریافت اسکین (فقط document با mime image/*) ======================
 @router.message(ProfileStates.waiting_for_skin)
 async def receive_skin_only_file_image(message: Message, state: FSMContext):
-    """
-    قبول فقط document که mime_type آن image/* باشد.
-    اگر کاربر عکس را به‌صورت photo ارسال کند یا فایل غیرعکس بفرستد،
-    پیام راهنما می‌فرستیم که حتماً عکس را به‌صورت فایل ارسال کند.
-    """
-    # اگر پیام document نیست → خطا بده
+
     if not message.document:
-        # اگر کاربر photo فرستاده یا هر چیز دیگر، به او بگو حتماً به‌صورت فایل ارسال کند
         await message.answer("❗ لطفاً عکس را به‌صورت *فایل* ارسال کن (Send as File). عکس‌های معمولی (photo) پذیرفته نمی‌شوند.")
         return
 
-    # بررسی mime type برای اطمینان از اینکه فایل یک تصویر است
     mime = getattr(message.document, "mime_type", "") or ""
     if not mime.startswith("image/"):
         await message.answer("❗ فایل ارسال‌شده تصویر نیست. لطفاً همان تصویر را به‌صورت فایل (image) ارسال کن.")
         return
 
-    # تا اینجا فایل تصویر به‌صورت document است — ادامهٔ پردازش
     data = await state.get_data()
     design_action = data.get("design")
+
     if not design_action:
         await message.answer("❗ خطا: طرح انتخابی پیدا نشد. دوباره از منو انتخاب کنید.")
         await state.clear()
@@ -202,6 +197,7 @@ async def receive_skin_only_file_image(message: Message, state: FSMContext):
     required = REF_REQUIREMENTS.get(design_action, 1)
     design_name = DESIGN_NAMES.get(design_action, "سفارش")
 
+    # بررسی رفرال
     async with AsyncSessionLocal() as session:
         user = await session.get(User, message.from_user.id)
         current_refs = user.referrals_count if user and user.referrals_count else 0
@@ -212,33 +208,45 @@ async def receive_skin_only_file_image(message: Message, state: FSMContext):
             ref_link = f"https://t.me/{me.username}?start={message.from_user.id}"
 
             await message.answer(
-                "⚠️ برای سفارش {} نیاز به {} رفرال داری.\n"
-                "🔹 شما اکنون: {} رفرال داری.\n"
-                "🔸 برای تکمیل نیاز، {} رفرال دیگر لازم است.\n\n"
-                "لینک رفرال شما:\n{}\n\n"
-                "دوستات رو دعوت کن و بعد دوباره تلاش کن.".format(design_name, required, current_refs, need, ref_link)
+                f"⚠️ برای سفارش {design_name} نیاز به {required} رفرال داری.\n"
+                f"🔹 شما اکنون: {current_refs} رفرال داری.\n"
+                f"🔸 برای تکمیل نیاز، {need} رفرال دیگر لازم است.\n\n"
+                f"لینک رفرال شما:\n{ref_link}\n\n"
+                "دوستات رو دعوت کن و بعد دوباره تلاش کن."
             )
             await state.clear()
             return
 
-        # کپشن ساده برای ادمین (بدون parse_mode)
-        caption = (
-            "🆕 سفارش جدید پروفایل بلاکسی\n\n"
-            f"👤 کاربر: {message.from_user.id}\n"
-            f"📛 یوزرنیم: @{message.from_user.username or 'ندارد'}\n"
-            f"🎨 طرح: {design_name}\n"
-            f"💡 نور: {data.get('light_color')}\n"
-            f"🖼 بکگراند: {data.get('bg_color')}\n"
+    # کپشن سفارش برای ادمین
+    caption = (
+        "🆕 سفارش جدید پروفایل بلاکسی\n\n"
+        f"👤 کاربر: {message.from_user.id}\n"
+        f"📛 یوزرنیم: @{message.from_user.username or 'ندارد'}\n"
+        f"🎨 طرح: {design_name}\n"
+        f"💡 نور: {data.get('light_color')}\n"
+        f"🖼 بکگراند: {data.get('bg_color')}\n"
+    )
+
+    # ارسال سفارش به ادمین + کم کردن رفرال
+    try:
+        await message.bot.send_document(
+            ADMIN_ID,
+            message.document.file_id,
+            caption=caption
         )
 
-        try:
-            # ارسال document (تصویر به‌صورت فایل) به ادمین
-            await message.bot.send_document(ADMIN_ID, message.document.file_id, caption=caption)
-        except Exception as e:
-            logger.exception("Failed to send order to admin: %s", e)
-            await message.answer("❗ خطا در ارسال سفارش به ادمین. لطفا بعدا تلاش کن.")
-            await state.clear()
-            return
+        # 🔥 کم کردن رفرال بر اساس طرح انتخابی
+        async with AsyncSessionLocal() as session:
+            user = await session.get(User, message.from_user.id)
+            if user and user.referrals_count >= required:
+                user.referrals_count -= required
+                await session.commit()
 
-        await message.answer("✅ سفارش شما ارسال شد. به زودی پروفایل برایتان ساخته می‌شود.")
+    except Exception as e:
+        logger.exception("Failed to send order to admin: %s", e)
+        await message.answer("❗ خطا در ارسال سفارش به ادمین. لطفا بعدا تلاش کن.")
         await state.clear()
+        return
+
+    await message.answer("✅ سفارش شما ارسال شد. به زودی پروفایل برایتان ساخته می‌شود.")
+    await state.clear()
