@@ -48,7 +48,7 @@ async def design_keyboard_for_user_and_caption(user_id: int):
         current_refs = user.referrals_count if user and user.referrals_count else 0
 
     # ساخت کیبورد (متن دکمه‌ها کوتاه نگه داشته شده)
-    kb = InlineKeyboardMarkup(row_width=1)
+    kb = InlineKeyboardMarkup()
     for action in ["design_1", "design_2", "design_3"]:
         need = REF_REQUIREMENTS.get(action, 0)
         name = DESIGN_NAMES.get(action, action)
@@ -114,21 +114,29 @@ async def choose_design(callback: CallbackQuery, state: FSMContext):
     )
 
     # نمایش مرحله بعد (انتخاب نور)
-    await callback.message.edit_caption(
-        caption=f"💡 شما {name} را انتخاب کردید.\n\nحال رنگ نورپردازی را انتخاب کنید:",
-        reply_markup=light_color_keyboard(),
-    )
+    # هنگام edit_caption مطمئن شو پیام قبلی کپشن داشته باشد؛ اگر نه از answer استفاده کن
+    try:
+        await callback.message.edit_caption(
+            caption=f"💡 شما {name} را انتخاب کردید.\n\nحال رنگ نورپردازی را انتخاب کنید:",
+            reply_markup=light_color_keyboard(),
+        )
+    except Exception:
+        # اگر edit_caption ناموفق بود (مثلاً پیام قبلی متن بود)، پیام جدید بفرست
+        await callback.message.answer(
+            f"💡 شما {name} را انتخاب کردید.\n\nحال رنگ نورپردازی را انتخاب کنید:",
+            reply_markup=light_color_keyboard(),
+        )
 
     await state.set_state(ProfileStates.choosing_light_color)
 
 
 def light_color_keyboard():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔴 قرمز", callback_data="light_red")],
-        [InlineKeyboardButton(text="🔵 آبی", callback_data="light_blue")],
-        [InlineKeyboardButton(text="🟣 بنفش", callback_data="light_purple")],
-        [InlineKeyboardButton(text="⚪ سفید", callback_data="light_white")]
-    ])
+    kb = InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton(text="🔴 قرمز", callback_data="light_red"))
+    kb.add(InlineKeyboardButton(text="🔵 آبی", callback_data="light_blue"))
+    kb.add(InlineKeyboardButton(text="🟣 بنفش", callback_data="light_purple"))
+    kb.add(InlineKeyboardButton(text="⚪ سفید", callback_data="light_white"))
+    return kb
 
 
 # ====================== انتخاب رنگ نور ======================
@@ -137,20 +145,26 @@ async def choose_light(callback: CallbackQuery, state: FSMContext):
     light_color = callback.data.split("_", 1)[1]
     await state.update_data(light_color=light_color)
 
-    await callback.message.edit_caption(
-        caption="🖼 حالا رنگ پس‌زمینه را انتخاب کنید:",
-        reply_markup=bg_color_keyboard()
-    )
+    try:
+        await callback.message.edit_caption(
+            caption="🖼 حالا رنگ پس‌زمینه را انتخاب کنید:",
+            reply_markup=bg_color_keyboard()
+        )
+    except Exception:
+        await callback.message.answer(
+            "🖼 حالا رنگ پس‌زمینه را انتخاب کنید:",
+            reply_markup=bg_color_keyboard()
+        )
 
     await state.set_state(ProfileStates.choosing_bg_color)
 
 
 def bg_color_keyboard():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬛ مشکی", callback_data="bg_black")],
-        [InlineKeyboardButton(text="🌊 آبی تیره", callback_data="bg_darkblue")],
-        [InlineKeyboardButton(text="🟣 بنفش", callback_data="bg_purple")]
-    ])
+    kb = InlineKeyboardMarkup()
+    kb.add(InlineKeyboardButton(text="⬛ مشکی", callback_data="bg_black"))
+    kb.add(InlineKeyboardButton(text="🌊 آبی تیره", callback_data="bg_darkblue"))
+    kb.add(InlineKeyboardButton(text="🟣 بنفش", callback_data="bg_purple"))
+    return kb
 
 
 # ====================== انتخاب رنگ بکگراند ======================
@@ -159,10 +173,13 @@ async def choose_bg(callback: CallbackQuery, state: FSMContext):
     bg_color = callback.data.split("_", 1)[1]
     await state.update_data(bg_color=bg_color)
 
-    await callback.message.edit_caption(
-        caption="✅ حالا فقط *فایل اسکین* را ارسال کنید.",
-        parse_mode="Markdown"
-    )
+    try:
+        await callback.message.edit_caption(
+            caption="✅ حالا فقط *فایل اسکین* را ارسال کنید.",
+            parse_mode="Markdown"
+        )
+    except Exception:
+        await callback.message.answer("✅ حالا فقط *فایل اسکین* را ارسال کنید.", parse_mode="Markdown")
 
     await state.set_state(ProfileStates.waiting_for_skin)
 
@@ -188,7 +205,7 @@ async def receive_skin(message: Message, state: FSMContext):
         file_type = "video"
         file_id = message.video.file_id
     else:
-        await message.answer("❗ لطفاً فقط فایل اسکین (فایل، عکس یا ویدیو) ارسال کنید.")
+        await message.answer("❗ لطفاً فقط فایل اسکین (فایل، عکس) ارسال کنید.")
         return
 
     data = await state.get_data()
