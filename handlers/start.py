@@ -1,8 +1,6 @@
-from aiogram import Router
+from aiogram import Router, Bot
 from aiogram.filters import CommandStart
 from aiogram.types import Message, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram import Bot
-
 from sqlalchemy import select
 
 from keyboards.main import main_menu
@@ -10,9 +8,11 @@ from database.models import AsyncSessionLocal, User
 
 router = Router()
 
-CHANNEL_ID = -1002375083668   # آیدی کانال BloxyDesign (اگر اشتباه است عوض کن)
+# آیدی واقعی کانال BloxyDesign
+CHANNEL_ID = -1002375083668
 
 
+# کیبورد عضویت اجباری
 def force_join_keyboard():
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📢 عضویت در کانال", url="https://t.me/BloxyDesign")],
@@ -23,51 +23,61 @@ def force_join_keyboard():
 @router.message(CommandStart())
 async def start(message: Message, bot: Bot):
 
-    # چک عضویت
+    # ------------------------------
+    # چک عضویت اجباری
+    # ------------------------------
     try:
         member = await bot.get_chat_member(CHANNEL_ID, message.from_user.id)
-        if member.status == "left":
+        if member.status in ["left", "kicked"]:
             await message.answer(
-                "⚠️ برای استفاده از ربات باید ابتدا در کانال زیر عضو شوید:",
+                "⚠️ برای استفاده از ربات باید ابتدا در کانال عضو شوید:",
                 reply_markup=force_join_keyboard()
             )
             return
     except:
         await message.answer(
-            "⚠️ برای استفاده از ربات باید ابتدا در کانال زیر عضو شوید:",
+            "⚠️ برای استفاده از ربات باید ابتدا در کانال عضو شوید:",
             reply_markup=force_join_keyboard()
         )
         return
 
-    # ادامه کد رفرال
+    # ------------------------------
+    # سیستم رفرال (نسخه بدون باگ)
+    # ------------------------------
     args = message.text.split()
 
     async with AsyncSessionLocal() as session:
 
+        # چک کن کاربر قبلاً ثبت شده یا نه
         result = await session.execute(
             select(User).where(User.id == message.from_user.id)
         )
-
         user = result.scalar_one_or_none()
 
         if not user:
 
             referred_by = None
 
+            # اگر لینک رفرال وجود داشت
             if len(args) > 1:
                 try:
                     referred_by = int(args[1])
                 except:
-                    pass
+                    referred_by = None
 
+            # جلوگیری از اینکه کاربر خودش را رفرال کند
+            if referred_by == message.from_user.id:
+                referred_by = None
+
+            # ساخت کاربر جدید
             new_user = User(
                 id=message.from_user.id,
                 username=message.from_user.username,
                 referred_by=referred_by
             )
-
             session.add(new_user)
 
+            # اگر رفرال معتبر بود → امتیاز بده
             if referred_by:
                 ref_result = await session.execute(
                     select(User).where(User.id == referred_by)
@@ -79,7 +89,10 @@ async def start(message: Message, bot: Bot):
 
             await session.commit()
 
+    # ------------------------------
     # پیام خوش‌آمد
+    # ------------------------------
+
     photo = FSInputFile("designs.jpg")
 
     caption = (
@@ -100,7 +113,9 @@ async def start(message: Message, bot: Bot):
     await message.answer("👇 از منوی زیر استفاده کنید:", reply_markup=main_menu)
 
 
-# هندلر دکمه تایید عضویت
+# ------------------------------
+# هندلر دکمه «تایید عضویت»
+# ------------------------------
 @router.callback_query(lambda c: c.data == "check_join")
 async def check_join(callback, bot: Bot):
 
