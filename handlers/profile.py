@@ -11,7 +11,7 @@ from utils.states import ProfileStates
 router = Router()
 
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
-REFERRAL_NEEDED = int(os.getenv("REFERRAL_NEEDED", 0))
+REFERRAL_NEEDED = int(os.getenv("REFERRAL_NEEDED", 1))
 
 
 # ====================== کیبورد طرح‌ها ======================
