@@ -6,9 +6,11 @@ router = Router()
 # آیدی عددی ادمین
 ADMIN_ID = 5508686165
 
+# وضعیت کاربران در حالت پشتیبانی
 waiting_support = {}
 
 
+# ========================= شروع پشتیبانی =========================
 @router.message(F.text == "📞 پشتیبانی")
 async def support_start(message: Message):
 
@@ -19,12 +21,22 @@ async def support_start(message: Message):
     )
 
 
-@router.message()
+# ========================= پیام‌های پشتیبانی =========================
+@router.message(
+    F.text & 
+    ~F.text.in_([
+        "🔗 لینک رفرال",
+        "❓ سوالات متداول",
+        "🖼 درخواست پروفایل",
+        "📞 پشتیبانی",
+        "👤 مشخصات من"
+    ])
+)
 async def support_message(message: Message):
 
     user_id = message.from_user.id
 
-    # پیام کاربر برای پشتیبانی
+    # اگر کاربر در حالت پشتیبانی باشد
     if user_id in waiting_support:
 
         waiting_support.pop(user_id)
@@ -48,11 +60,10 @@ async def support_message(message: Message):
             "✅ پیام شما برای پشتیبانی ارسال شد."
         )
 
-    # پاسخ ادمین
+    # اگر ادمین در حال پاسخ دادن باشد
     elif user_id == ADMIN_ID and message.reply_to_message:
 
         try:
-
             replied_text = message.reply_to_message.text
 
             target_id = int(
