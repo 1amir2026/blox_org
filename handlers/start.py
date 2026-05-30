@@ -9,7 +9,7 @@ from handlers.membership import check_membership, force_join_keyboard
 
 router = Router()
 
-CHANNEL_ID = -1002375083668
+CHANNEL_ID = -1002100624495
 
 
 @router.message(CommandStart())
