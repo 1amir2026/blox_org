@@ -1,157 +1,104 @@
-# handlers/admin_panel.py
+# handlers/admin_reply.py
+import re
+import logging
 import os
 from aiogram import Router, F
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
-from sqlalchemy import select
-
-from database.models import AsyncSessionLocal, User
+from aiogram.types import Message
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
-# ------------------ حالت‌ها ------------------
-class AdminStates(StatesGroup):
-    waiting_user_id = State()
-    waiting_amount = State()
-    waiting_set_amount = State()
+# الگوی استخراج user_id از کپشن سفارش
+USER_ID_RE = re.compile(r"👤\s*کاربر[:\s]*([0-9]+)")
 
-
-# ------------------ کیبورد پنل ادمین ------------------
-def admin_panel_keyboard():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ افزودن رفرال", callback_data="admin_add")],
-        [InlineKeyboardButton(text="✏️ تنظیم رفرال", callback_data="admin_set")],
-        [InlineKeyboardButton(text="🔎 نمایش رفرال", callback_data="admin_view")],
-        [InlineKeyboardButton(text="🔙 بازگشت", callback_data="admin_back")],
-    ])
-
-
-# ------------------ ورود به پنل ------------------
-@router.message(F.text.contains("پنل ادمین"))
-async def admin_panel(message: Message):
+@router.message(F.reply_to_message)
+async def admin_reply_handler(message: Message):
+    # فقط ادمین مجاز است
     if message.from_user.id != ADMIN_ID:
-        await message.answer("❌ شما ادمین نیستید.")
         return
 
-    await message.answer("🔐 پنل ادمین:", reply_markup=admin_panel_keyboard())
+    orig = message.reply_to_message
+    text_to_search = ""
 
+    # کپشن یا متن پیام سفارش را برای پیدا کردن user_id بررسی می‌کنیم
+    if orig.caption:
+        text_to_search += orig.caption + "\n"
+    if orig.text:
+        text_to_search += orig.text + "\n"
 
-# ------------------ هندلر دکمه‌ها ------------------
-@router.callback_query(F.data.startswith("admin_"))
-async def admin_actions(callback: CallbackQuery, state: FSMContext):
-    if callback.from_user.id != ADMIN_ID:
-        await callback.answer("❌ دسترسی ندارید.", show_alert=True)
+    m = USER_ID_RE.search(text_to_search)
+    if not m:
+        await message.reply("❗ شناسه کاربر در پیام سفارش پیدا نشد. کپشن باید شامل '👤 کاربر: <id>' باشد.")
+        logger.warning("admin reply: user id not found. orig_caption=%s orig_text=%s", orig.caption, orig.text)
         return
 
-    action = callback.data
+    user_id = int(m.group(1))
 
-    await callback.answer()
-
-    if action in ("admin_add", "admin_set", "admin_view"):
-        await callback.message.answer("🔢 شناسه کاربر را بفرست:")
-        await state.set_state(AdminStates.waiting_user_id)
-        await state.update_data(mode=action)
-        return
-
-    if action == "admin_back":
-        await callback.message.answer("🔙 به منوی اصلی برگشتی.")
-        await state.clear()
-        return
-
-
-# ------------------ دریافت user_id ------------------
-@router.message(AdminStates.waiting_user_id)
-async def get_user_id(message: Message, state: FSMContext):
-    raw = message.text or message.caption or ""
+    # کپشن پیام ادمین (چه عکس باشد چه متن)
+    caption = message.caption or message.text or ""
 
     try:
-        user_id = int(raw)
-    except:
-        await message.answer("❗ شناسه نامعتبر است. فقط عدد بفرست.")
-        return
+        # ارسال انواع محتوا
+        if message.document:
+            await message.bot.send_document(
+                chat_id=user_id,
+                document=message.document.file_id,
+                caption=caption or None
+            )
 
-    await state.update_data(target=user_id)
-    data = await state.get_data()
-    mode = data.get("mode")
+        elif message.photo:
+            await message.bot.send_photo(
+                chat_id=user_id,
+                photo=message.photo[-1].file_id,
+                caption=caption or None
+            )
 
-    if mode == "admin_view":
-        async with AsyncSessionLocal() as session:
-            user = await session.get(User, user_id)
-            refs = user.referrals_count if user else 0
+        elif message.video:
+            await message.bot.send_video(
+                chat_id=user_id,
+                video=message.video.file_id,
+                caption=caption or None
+            )
 
-        await message.answer(f"🔎 رفرال کاربر {user_id}: {refs}")
-        await state.clear()
-        return
+        elif message.audio:
+            await message.bot.send_audio(
+                chat_id=user_id,
+                audio=message.audio.file_id,
+                caption=caption or None
+            )
 
-    if mode == "admin_add":
-        await message.answer("➕ چند رفرال اضافه کنم؟")
-        await state.set_state(AdminStates.waiting_amount)
-        return
+        elif message.voice:
+            await message.bot.send_voice(
+                chat_id=user_id,
+                voice=message.voice.file_id,
+                caption=caption or None
+            )
 
-    if mode == "admin_set":
-        await message.answer("✏️ مقدار جدید رفرال را بفرست:")
-        await state.set_state(AdminStates.waiting_set_amount)
-        return
+        elif message.sticker:
+            await message.bot.send_sticker(
+                chat_id=user_id,
+                sticker=message.sticker.file_id
+            )
 
+        elif message.text:
+            await message.bot.send_message(
+                chat_id=user_id,
+                text=message.text
+            )
 
-# ------------------ افزودن رفرال ------------------
-@router.message(AdminStates.waiting_amount)
-async def add_refs(message: Message, state: FSMContext):
-    raw = message.text or message.caption or ""
+        else:
+            # اگر نوع پیام ناشناخته بود، پیام را فوروارد می‌کنیم
+            await message.bot.forward_message(
+                chat_id=user_id,
+                from_chat_id=message.chat.id,
+                message_id=message.message_id
+            )
 
-    try:
-        amount = int(raw)
-    except:
-        await message.answer("❗ مقدار نامعتبر است. فقط عدد بفرست.")
-        return
+        await message.reply("✅ پاسخ شما به کاربر ارسال شد.")
+        logger.info("Admin reply forwarded to user %s by admin %s", user_id, message.from_user.id)
 
-    data = await state.get_data()
-    user_id = data.get("target")
-
-    async with AsyncSessionLocal() as session:
-        user = await session.get(User, user_id)
-
-        if not user:
-            await message.answer("❗ کاربر پیدا نشد.")
-            await state.clear()
-            return
-
-        old = user.referrals_count or 0
-        user.referrals_count = old + amount
-        await session.commit()
-
-    await message.answer(f"✅ رفرال کاربر {user_id} از {old} → {user.referrals_count} افزایش یافت.")
-    await state.clear()
-
-
-# ------------------ تنظیم مستقیم رفرال ------------------
-@router.message(AdminStates.waiting_set_amount)
-async def set_refs(message: Message, state: FSMContext):
-    raw = message.text or message.caption or ""
-
-    try:
-        amount = int(raw)
-    except:
-        await message.answer("❗ مقدار نامعتبر است. فقط عدد بفرست.")
-        return
-
-    data = await state.get_data()
-    user_id = data.get("target")
-
-    async with AsyncSessionLocal() as session:
-        user = await session.get(User, user_id)
-
-        if not user:
-            await message.answer("❗ کاربر پیدا نشد.")
-            await state.clear()
-            return
-
-        old = user.referrals_count or 0
-        user.referrals_count = amount
-        await session.commit()
-
-    await message.answer(f"✏️ رفرال کاربر {user_id} از {old} → {amount} تنظیم شد.")
-    await state.clear()
+    except Exception as e:
+        logger.exception("Error forwarding admin reply: %s", e)
+        await message.reply("❌ خطا در ارسال پیام به کاربر. ممکن است کاربر ربات را بلاک کرده باشد یا خطای دیگری رخ داده باشد.")
