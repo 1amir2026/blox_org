@@ -14,7 +14,7 @@ def main_menu(user_id: int):
     ]
 
     if user_id == ADMIN_ID:
-        keyboard.append([KeyboardButton(text="👨🏻‍💻 پنل ادمین")])
+        keyboard.append([KeyboardButton(text="پنل ادمین")])
 
     return ReplyKeyboardMarkup(
         keyboard=keyboard,
