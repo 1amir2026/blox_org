@@ -8,6 +8,7 @@ import logging
 from keyboards.main import main_menu
 from database.models import AsyncSessionLocal, User
 from handlers.membership import check_membership, force_join_keyboard
+from keyboards.main_reply import main_reply_keyboard
 
 router = Router()
 logging.basicConfig(level=logging.INFO)
