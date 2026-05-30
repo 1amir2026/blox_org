@@ -7,7 +7,7 @@ main_menu = ReplyKeyboardMarkup(
         [KeyboardButton(text="👤 مشخصات من")],
         [KeyboardButton(text="❓ سوالات متداول")],
         [KeyboardButton(text="📞 پشتیبانی")],
-        [KeyboardButton(text="👨🏻‍💻 پنل ادمین")],
  ],
+ 
     resize_keyboard=True
 )
