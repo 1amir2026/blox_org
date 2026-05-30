@@ -37,27 +37,20 @@ DESIGN_NAMES = {
 
 # ====================== کیبورد داینامیک و کپشن داینامیک ======================
 async def design_keyboard_for_user_and_caption(user_id: int):
-    """
-    برمی‌گرداند: (InlineKeyboardMarkup, caption_text)
-    caption شامل نیاز هر طرح و وضعیت فعلی کاربر است.
-    """
-    # خواندن رفرال فعلی کاربر
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
         current_refs = user.referrals_count if user and user.referrals_count else 0
 
-    # ساخت لیست ردیف‌های کیبورد به صورت inline_keyboard (سازگار با pydantic)
     inline_keyboard = []
     for action in ["design_1", "design_2", "design_3"]:
         need = REF_REQUIREMENTS.get(action, 0)
         name = DESIGN_NAMES.get(action, action)
         btn = InlineKeyboardButton(text=f"{name} — نیاز: {need}", callback_data=action)
-        inline_keyboard.append([btn])  # هر دکمه در یک ردیف جدا
+        inline_keyboard.append([btn])
 
     kb = InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
-    # ساخت کپشن داینامیک که زیر عکس نمایش داده می‌شود
     caption_lines = [
         "🎨 لطفاً طرح مورد نظر خود را انتخاب کنید",
         "",
@@ -68,7 +61,7 @@ async def design_keyboard_for_user_and_caption(user_id: int):
         name = DESIGN_NAMES.get(action, action)
         caption_lines.append(f"• {name} — نیاز: {need} رفرال")
 
-    caption_lines.append("")  # خط خالی
+    caption_lines.append("")
     caption_lines.append(f"🔸 رفرال فعلی شما: {current_refs}")
     caption = "\n".join(caption_lines)
 
@@ -78,9 +71,6 @@ async def design_keyboard_for_user_and_caption(user_id: int):
 # ====================== درخواست پروفایل ======================
 @router.message(F.text == "🖼 درخواست پروفایل")
 async def request_profile(message: Message, state: FSMContext):
-    """
-    نمایش عکس نمونه همراه با کیبورد داینامیک و کپشن که نیاز هر طرح را نشان می‌دهد.
-    """
     try:
         photo = FSInputFile("designs.jpg")
     except Exception:
@@ -99,23 +89,19 @@ async def request_profile(message: Message, state: FSMContext):
 # ====================== انتخاب طرح ======================
 @router.callback_query(F.data.startswith("design_"))
 async def choose_design(callback: CallbackQuery, state: FSMContext):
-    action = callback.data  # مثلاً "design_1"
+    action = callback.data
     await state.update_data(design=action)
 
     name = DESIGN_NAMES.get(action, "طرح انتخابی")
-    # خواندن رفرال فعلی کاربر برای اطلاع‌رسانی
     async with AsyncSessionLocal() as session:
         user = await session.get(User, callback.from_user.id)
         current_refs = user.referrals_count if user and user.referrals_count else 0
     required = REF_REQUIREMENTS.get(action, 0)
 
-    # پیام اطلاع‌رسانی کوتاه (نشان می‌دهد کاربر چند رفرال دارد و چند نیاز است)
     await callback.message.answer(
-        f"🔔 شما {current_refs} رفرال دارید. برای سفارش *{name}* نیاز به *{required}* رفرال است.",
-        parse_mode="Markdown",
+        f"🔔 شما {current_refs} رفرال دارید. برای سفارش {name} نیاز به {required} رفرال است."
     )
 
-    # نمایش مرحله بعد (انتخاب نور)
     try:
         await callback.message.edit_caption(
             caption=f"💡 شما {name} را انتخاب کردید.\n\nحال رنگ نورپردازی را انتخاب کنید:",
@@ -177,39 +163,35 @@ async def choose_bg(callback: CallbackQuery, state: FSMContext):
 
     try:
         await callback.message.edit_caption(
-            caption="✅ حالا فقط *فایل اسکین* را ارسال کنید.",
-            parse_mode="Markdown"
+            caption="✅ حالا فقط فایل اسکین را به‌صورت فایل (Send as File) ارسال کنید."
         )
     except Exception:
-        await callback.message.answer("✅ حالا فقط *فایل اسکین* را ارسال کنید.", parse_mode="Markdown")
+        await callback.message.answer("✅ حالا فقط فایل اسکین را به‌صورت فایل (Send as File) ارسال کنید.")
 
     await state.set_state(ProfileStates.waiting_for_skin)
 
 
-# ====================== دریافت اسکین ======================
+# ====================== دریافت اسکین (فقط document با mime image/*) ======================
 @router.message(ProfileStates.waiting_for_skin)
-async def receive_skin(message: Message, state: FSMContext):
+async def receive_skin_only_file_image(message: Message, state: FSMContext):
     """
-    قبول انواع فایل (document, photo, video) و ارسال سفارش به ادمین
-    چک رفرال بر اساس طرح انتخابی انجام می‌شود.
+    قبول فقط document که mime_type آن image/* باشد.
+    اگر کاربر عکس را به‌صورت photo ارسال کند یا فایل غیرعکس بفرستد،
+    پیام راهنما می‌فرستیم که حتماً عکس را به‌صورت فایل ارسال کند.
     """
-    # قبول انواع فایل: document, photo, video
-    file_type = None
-    file_id = None
-
-    if message.document:
-        file_type = "document"
-        file_id = message.document.file_id
-    elif message.photo:
-        file_type = "photo"
-        file_id = message.photo[-1].file_id
-    elif message.video:
-        file_type = "video"
-        file_id = message.video.file_id
-    else:
-        await message.answer("❗ لطفاً فقط فایل اسکین (فایل، عکس فقط) ارسال کنید.")
+    # اگر پیام document نیست → خطا بده
+    if not message.document:
+        # اگر کاربر photo فرستاده یا هر چیز دیگر، به او بگو حتماً به‌صورت فایل ارسال کند
+        await message.answer("❗ لطفاً عکس را به‌صورت *فایل* ارسال کن (Send as File). عکس‌های معمولی (photo) پذیرفته نمی‌شوند.")
         return
 
+    # بررسی mime type برای اطمینان از اینکه فایل یک تصویر است
+    mime = getattr(message.document, "mime_type", "") or ""
+    if not mime.startswith("image/"):
+        await message.answer("❗ فایل ارسال‌شده تصویر نیست. لطفاً همان تصویر را به‌صورت فایل (image) ارسال کن.")
+        return
+
+    # تا اینجا فایل تصویر به‌صورت document است — ادامهٔ پردازش
     data = await state.get_data()
     design_action = data.get("design")
     if not design_action:
@@ -230,19 +212,18 @@ async def receive_skin(message: Message, state: FSMContext):
             ref_link = f"https://t.me/{me.username}?start={message.from_user.id}"
 
             await message.answer(
-                f"⚠️ برای سفارش *{design_name}* نیاز به *{required}* رفرال داری.\n"
-                f"🔹 شما اکنون: *{current_refs}* رفرال داری.\n"
-                f"🔸 برای تکمیل نیاز، *{need}* رفرال دیگر لازم است.\n\n"
-                f"لینک رفرال شما:\n{ref_link}\n\n"
-                "دوستات رو دعوت کن و بعد دوباره تلاش کن.",
-                parse_mode="Markdown"
+                "⚠️ برای سفارش {} نیاز به {} رفرال داری.\n"
+                "🔹 شما اکنون: {} رفرال داری.\n"
+                "🔸 برای تکمیل نیاز، {} رفرال دیگر لازم است.\n\n"
+                "لینک رفرال شما:\n{}\n\n"
+                "دوستات رو دعوت کن و بعد دوباره تلاش کن.".format(design_name, required, current_refs, need, ref_link)
             )
             await state.clear()
             return
 
-        # ساخت کپشن استاندارد که admin_reply بتواند user_id را استخراج کند
+        # کپشن ساده برای ادمین (بدون parse_mode)
         caption = (
-            f"🆕 سفارش جدید پروفایل بلاکسی\n\n"
+            "🆕 سفارش جدید پروفایل بلاکسی\n\n"
             f"👤 کاربر: {message.from_user.id}\n"
             f"📛 یوزرنیم: @{message.from_user.username or 'ندارد'}\n"
             f"🎨 طرح: {design_name}\n"
@@ -250,25 +231,14 @@ async def receive_skin(message: Message, state: FSMContext):
             f"🖼 بکگراند: {data.get('bg_color')}\n"
         )
 
-        # ارسال فایل به ادمین با نوع مناسب
         try:
-            if file_type == "document":
-                await message.bot.send_document(ADMIN_ID, file_id, caption=caption)
-            elif file_type == "photo":
-                await message.bot.send_photo(ADMIN_ID, file_id, caption=caption)
-            elif file_type == "video":
-                await message.bot.send_video(ADMIN_ID, file_id, caption=caption)
-            else:
-                await message.bot.forward_message(ADMIN_ID, message.chat.id, message.message_id)
+            # ارسال document (تصویر به‌صورت فایل) به ادمین
+            await message.bot.send_document(ADMIN_ID, message.document.file_id, caption=caption)
         except Exception as e:
             logger.exception("Failed to send order to admin: %s", e)
             await message.answer("❗ خطا در ارسال سفارش به ادمین. لطفا بعدا تلاش کن.")
             await state.clear()
             return
-
-        # اگر می‌خواهی رفرال‌ها پس از ثبت سفارش کسر شوند، اینجا فعال کن:
-        # user.referrals_count = max(0, current_refs - required)
-        # await session.commit()
 
         await message.answer("✅ سفارش شما ارسال شد. به زودی پروفایل برایتان ساخته می‌شود.")
         await state.clear()
