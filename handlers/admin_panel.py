@@ -30,7 +30,7 @@ def admin_panel_keyboard():
 
 
 # ورود به پنل
-@router.message(F.text == "👨🏻‍💻 پنل ادمین")
+@router.message(F.text.contains("پنل ادمین"))
 async def admin_panel(message: Message):
     if message.from_user.id != ADMIN_ID:
         await message.answer("❌ شما ادمین نیستید.")
