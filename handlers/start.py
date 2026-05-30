@@ -1,6 +1,6 @@
 from aiogram import Router, Bot
 from aiogram.filters import CommandStart
-from aiogram.types import Message, FSInputFile
+from aiogram.types import Message, FSInputFile, CallbackQuery
 from sqlalchemy import select
 import re
 import logging
@@ -14,15 +14,15 @@ logging.basicConfig(level=logging.INFO)
 
 CHANNEL_ID = -1002100624495
 
-# تابع کمکی برای escape کردن متن در MarkdownV2
-# از رشتهٔ معمولی با بک‌اسلش‌های escape شده استفاده شده تا SyntaxError پیش نیاد
-MDV2_SPECIAL = '[_*\
+# MarkdownV2 special characters as a simple string
+MDV2_CHARS = "_*[]()~`>#+-=|{}.!"
 
-\[\\]
+# Build a safe regex pattern using re.escape so we don't introduce syntax errors
+MDV2_SPECIAL = "[" + re.escape(MDV2_CHARS) + "]"
 
-()~`>#+\\-=|{}\\.!]'
 
 def escape_md_v2(text: str) -> str:
+    """Escape MarkdownV2 special characters in text."""
     return re.sub(MDV2_SPECIAL, lambda m: "\\" + m.group(0), text)
 
 
@@ -30,20 +30,20 @@ def escape_md_v2(text: str) -> str:
 async def start(message: Message, bot: Bot):
     logging.info("start handler hit for user %s", message.from_user.id)
 
-    # حذف webhook در صورت وجود تا از Conflict جلوگیری شود
+    # Ensure webhook is removed to avoid getUpdates conflict when using polling
     try:
         await bot.delete_webhook(drop_pending_updates=True)
-    except Exception as e:
-        logging.debug("delete_webhook failed or not needed: %s", e)
+    except Exception:
+        # Not fatal; continue
+        logging.debug("delete_webhook not needed or failed")
 
-    # ============================
-    # 1) ذخیره رفرال قبل از چک عضویت
-    # ============================
-    args = message.text.split()
+    # ----------------------------
+    # 1) Save referral before membership check
+    # ----------------------------
+    args = (message.text or "").split()
 
     try:
         async with AsyncSessionLocal() as session:
-
             result = await session.execute(
                 select(User).where(User.id == message.from_user.id)
             )
@@ -55,7 +55,7 @@ async def start(message: Message, bot: Bot):
                 if len(args) > 1:
                     try:
                         referred_by = int(args[1])
-                    except:
+                    except Exception:
                         referred_by = None
 
                 if referred_by == message.from_user.id:
@@ -81,26 +81,28 @@ async def start(message: Message, bot: Bot):
 
     except Exception as e:
         logging.exception("Database error in start handler: %s", e)
-        # ادامه می‌دهیم تا کاربر پیام خوش‌آمد را ببیند حتی اگر DB خطا داده باشد
+        # Continue so user still sees welcome message even if DB failed
 
-    # ============================
-    # 2) چک عضویت بعد از ذخیره رفرال
-    # ============================
+    # ----------------------------
+    # 2) Membership check after referral saved
+    # ----------------------------
     try:
-        if not await check_membership(bot, message.from_user.id):
-            await message.answer(
-                "⚠️ برای استفاده از ربات باید ابتدا در کانال عضو شوید:",
-                reply_markup=force_join_keyboard()
-            )
-            return
+        is_member = await check_membership(bot, message.from_user.id)
     except Exception as e:
         logging.exception("check_membership error: %s", e)
         await message.answer("❗ خطا در بررسی عضویت. لطفا دوباره تلاش کن.")
         return
 
-    # ============================
-    # 3) پیام خوش‌آمد (با escape برای MarkdownV2)
-    # ============================
+    if not is_member:
+        await message.answer(
+            "⚠️ برای استفاده از ربات باید ابتدا در کانال عضو شوید:",
+            reply_markup=force_join_keyboard()
+        )
+        return
+
+    # ----------------------------
+    # 3) Welcome message (escaped for MarkdownV2)
+    # ----------------------------
     photo = FSInputFile("designs.jpg")
 
     caption = (
@@ -118,20 +120,21 @@ async def start(message: Message, bot: Bot):
     safe_caption = escape_md_v2(caption)
 
     try:
-        await message.answer_photo(
-            photo=photo,
-            caption=safe_caption,
-            parse_mode="MarkdownV2"
-        )
+        await message.answer_photo(photo=photo, caption=safe_caption, parse_mode="MarkdownV2")
     except Exception as e:
         logging.exception("Failed to send welcome photo with MarkdownV2: %s", e)
-        # fallback: ارسال بدون فرمت
+        # Fallback: send without parse mode
         try:
             await message.answer_photo(photo=photo, caption=caption, parse_mode=None)
         except Exception as e2:
             logging.exception("Fallback send failed: %s", e2)
+            # If even fallback fails, send a simple text welcome
+            try:
+                await message.answer("🎉 خوش آمدی! برای ادامه از منو استفاده کن.")
+            except Exception:
+                logging.exception("Failed to send fallback text welcome")
 
-    # منوی اصلی
+    # Send main menu
     try:
         await message.answer("👇 از منوی زیر استفاده کنید:", reply_markup=main_menu)
     except Exception as e:
@@ -139,7 +142,7 @@ async def start(message: Message, bot: Bot):
 
 
 @router.callback_query(lambda c: c.data == "check_join")
-async def check_join(callback, bot: Bot):
+async def check_join(callback: CallbackQuery, bot: Bot):
     try:
         if await check_membership(bot, callback.from_user.id):
             await callback.message.edit_text("✔️ عضویت تایید شد. دوباره /start بزنید.")
@@ -147,4 +150,7 @@ async def check_join(callback, bot: Bot):
             await callback.answer("❌ هنوز عضو کانال نیستی!", show_alert=True)
     except Exception as e:
         logging.exception("check_join error: %s", e)
-        await callback.answer("❗ خطا در بررسی عضویت. بعدا تلاش کن.", show_alert=True)
+        try:
+            await callback.answer("❗ خطا در بررسی عضویت. بعدا تلاش کن.", show_alert=True)
+        except Exception:
+            logging.exception("Failed to send check_join error alert")
