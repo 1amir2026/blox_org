@@ -10,7 +10,6 @@ from utils.states import ProfileStates
 
 router = Router()
 
-# مقدارها از env
 ADMIN_ID = int(os.getenv("ADMIN_ID"))
 REFERRAL_NEEDED = int(os.getenv("REFERRAL_NEEDED", 0))
 
@@ -28,17 +27,10 @@ def design_inline_keyboard():
 # ====================== درخواست پروفایل ======================
 @router.message(F.text == "🖼 درخواست پروفایل")
 async def request_profile(message: Message, state: FSMContext):
-    async with AsyncSessionLocal() as session:
-        user = await session.get(User, message.from_user.id)
 
-        if not user or user.referrals_count < REFERRAL_NEEDED:
-            await message.answer(
-                f"❌ شما هنوز شرط لازم را ندارید.\n"
-                f"تعداد رفرال شما: {user.referrals_count if user else 0}/{REFERRAL_NEEDED}"
-            )
-            return
+    # ❗ اینجا دیگه رفرال چک نمی‌کنیم
+    # فقط وارد مرحله انتخاب طرح می‌شه
 
-    # ارسال عکس ثابت + دکمه‌ها
     photo = FSInputFile("designs.jpg")
 
     await message.answer_photo(
@@ -56,7 +48,6 @@ async def choose_design(callback: CallbackQuery, state: FSMContext):
     design_num = callback.data.split("_")[1]
     await state.update_data(design=design_num)
 
-    # فقط کپشن و دکمه‌ها عوض می‌شوند، عکس designs.jpg سر جایش می‌ماند
     await callback.message.edit_caption(
         caption="💡 حالا رنگ نورپردازی را انتخاب کنید:",
         reply_markup=light_color_keyboard()
@@ -105,15 +96,34 @@ async def choose_bg(callback: CallbackQuery, state: FSMContext):
     await state.update_data(bg_color=bg_color)
 
     await callback.message.edit_caption(
-        caption="✅ حالا اسکین خود را به صورت فایل PNG ارسال کنید."
+        caption="✅ حالا *فقط فایل اسکین* را ارسال کنید.",
+        parse_mode="Markdown"
     )
 
     await state.set_state(ProfileStates.waiting_for_skin)
 
 
 # ====================== دریافت اسکین ======================
-@router.message(ProfileStates.waiting_for_skin, F.document | F.photo)
+@router.message(ProfileStates.waiting_for_skin)
 async def receive_skin(message: Message, state: FSMContext):
+
+    # ❗ فقط فایل قبول می‌کنیم
+    if not message.document:
+        await message.answer("❗ لطفاً فقط *فایل اسکین* ارسال کنید.", parse_mode="Markdown")
+        return
+
+    # ❗ رفرال اینجا چک می‌شود (نه قبل‌تر)
+    async with AsyncSessionLocal() as session:
+        user = await session.get(User, message.from_user.id)
+
+        if not user or user.referrals_count < REFERRAL_NEEDED:
+            await message.answer(
+                f"❌ شما رفرال کافی ندارید.\n"
+                f"رفرال شما: {user.referrals_count if user else 0}/{REFERRAL_NEEDED}"
+            )
+            await state.clear()
+            return
+
     data = await state.get_data()
 
     caption = f"""
@@ -126,10 +136,11 @@ async def receive_skin(message: Message, state: FSMContext):
 🖼 بکگراند: {data.get('bg_color')}
     """
 
-    if message.photo:
-        await message.bot.send_photo(ADMIN_ID, message.photo[-1].file_id, caption=caption)
-    else:
-        await message.bot.send_document(ADMIN_ID, message.document.file_id, caption=caption)
+    await message.bot.send_document(
+        ADMIN_ID,
+        message.document.file_id,
+        caption=caption
+    )
 
-    await message.answer("✅ سفارش شما با موفقیت به ادمین ارسال شد.\nبه زودی پروفایل برایتان ساخته و ارسال می‌شود.")
+    await message.answer("✅ سفارش شما ارسال شد. به زودی پروفایل برایتان ساخته می‌شود.")
     await state.clear()
