@@ -5,50 +5,29 @@ from sqlalchemy import select
 
 from keyboards.main import main_menu
 from database.models import AsyncSessionLocal, User
+from handlers.membership import check_membership, force_join_keyboard
 
 router = Router()
 
-# آیدی واقعی کانال BloxyDesign
 CHANNEL_ID = -1002375083668
-
-
-# کیبورد عضویت اجباری
-def force_join_keyboard():
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📢 عضویت در کانال", url="https://t.me/BloxyDesign")],
-        [InlineKeyboardButton(text="✔️ تایید عضویت", callback_data="check_join")]
-    ])
 
 
 @router.message(CommandStart())
 async def start(message: Message, bot: Bot):
 
-    # ------------------------------
-    # چک عضویت اجباری
-    # ------------------------------
-    try:
-        member = await bot.get_chat_member(CHANNEL_ID, message.from_user.id)
-        if member.status in ["left", "kicked"]:
-            await message.answer(
-                "⚠️ برای استفاده از ربات باید ابتدا در کانال عضو شوید:",
-                reply_markup=force_join_keyboard()
-            )
-            return
-    except:
+    # چک عضویت
+    if not await check_membership(bot, message.from_user.id):
         await message.answer(
             "⚠️ برای استفاده از ربات باید ابتدا در کانال عضو شوید:",
             reply_markup=force_join_keyboard()
         )
         return
 
-    # ------------------------------
-    # سیستم رفرال (نسخه بدون باگ)
-    # ------------------------------
+    # سیستم رفرال
     args = message.text.split()
 
     async with AsyncSessionLocal() as session:
 
-        # چک کن کاربر قبلاً ثبت شده یا نه
         result = await session.execute(
             select(User).where(User.id == message.from_user.id)
         )
@@ -58,18 +37,15 @@ async def start(message: Message, bot: Bot):
 
             referred_by = None
 
-            # اگر لینک رفرال وجود داشت
             if len(args) > 1:
                 try:
                     referred_by = int(args[1])
                 except:
                     referred_by = None
 
-            # جلوگیری از اینکه کاربر خودش را رفرال کند
             if referred_by == message.from_user.id:
                 referred_by = None
 
-            # ساخت کاربر جدید
             new_user = User(
                 id=message.from_user.id,
                 username=message.from_user.username,
@@ -77,7 +53,6 @@ async def start(message: Message, bot: Bot):
             )
             session.add(new_user)
 
-            # اگر رفرال معتبر بود → امتیاز بده
             if referred_by:
                 ref_result = await session.execute(
                     select(User).where(User.id == referred_by)
@@ -89,10 +64,7 @@ async def start(message: Message, bot: Bot):
 
             await session.commit()
 
-    # ------------------------------
     # پیام خوش‌آمد
-    # ------------------------------
-
     photo = FSInputFile("designs.jpg")
 
     caption = (
@@ -113,17 +85,11 @@ async def start(message: Message, bot: Bot):
     await message.answer("👇 از منوی زیر استفاده کنید:", reply_markup=main_menu)
 
 
-# ------------------------------
-# هندلر دکمه «تایید عضویت»
-# ------------------------------
+# دکمه تایید عضویت
 @router.callback_query(lambda c: c.data == "check_join")
 async def check_join(callback, bot: Bot):
 
-    try:
-        member = await bot.get_chat_member(CHANNEL_ID, callback.from_user.id)
-        if member.status != "left":
-            await callback.message.edit_text("✔️ عضویت تایید شد. دوباره /start بزنید.")
-        else:
-            await callback.answer("❌ هنوز عضو کانال نیستی!", show_alert=True)
-    except:
+    if await check_membership(bot, callback.from_user.id):
+        await callback.message.edit_text("✔️ عضویت تایید شد. دوباره /start بزنید.")
+    else:
         await callback.answer("❌ هنوز عضو کانال نیستی!", show_alert=True)
