@@ -15,12 +15,12 @@ logging.basicConfig(level=logging.INFO)
 CHANNEL_ID = -1002100624495
 
 # تابع کمکی برای escape کردن متن در MarkdownV2
-# توجه: از نقل‌قول دوتایی استفاده شده تا هیچ تداخل با ' یا " داخل الگو پیش نیاید
-MDV2_SPECIAL = r"[_*
+# از رشتهٔ معمولی با بک‌اسلش‌های escape شده استفاده شده تا SyntaxError پیش نیاد
+MDV2_SPECIAL = '[_*\
 
-\[\]
+\[\\]
 
-()~`>#+\-=|{}.!]"
+()~`>#+\\-=|{}\\.!]'
 
 def escape_md_v2(text: str) -> str:
     return re.sub(MDV2_SPECIAL, lambda m: "\\" + m.group(0), text)
