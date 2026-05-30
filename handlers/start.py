@@ -1,19 +1,45 @@
 from aiogram import Router
 from aiogram.filters import CommandStart
-from aiogram.types import Message, FSInputFile
+from aiogram.types import Message, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import Bot
 
 from sqlalchemy import select
 
 from keyboards.main import main_menu
-from keyboards.inline import join_channel_keyboard
 from database.models import AsyncSessionLocal, User
 
 router = Router()
 
+CHANNEL_ID = -1002267811430   # آیدی کانال BloxyDesign (اگر اشتباه است عوض کن)
+
+
+def force_join_keyboard():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📢 عضویت در کانال", url="https://t.me/BloxyDesign")],
+        [InlineKeyboardButton(text="✔️ تایید عضویت", callback_data="check_join")]
+    ])
+
 
 @router.message(CommandStart())
-async def start(message: Message):
+async def start(message: Message, bot: Bot):
 
+    # چک عضویت
+    try:
+        member = await bot.get_chat_member(CHANNEL_ID, message.from_user.id)
+        if member.status == "left":
+            await message.answer(
+                "⚠️ برای استفاده از ربات باید ابتدا در کانال زیر عضو شوید:",
+                reply_markup=force_join_keyboard()
+            )
+            return
+    except:
+        await message.answer(
+            "⚠️ برای استفاده از ربات باید ابتدا در کانال زیر عضو شوید:",
+            reply_markup=force_join_keyboard()
+        )
+        return
+
+    # ادامه کد رفرال
     args = message.text.split()
 
     async with AsyncSessionLocal() as session:
@@ -53,22 +79,14 @@ async def start(message: Message):
 
             await session.commit()
 
-    # ------------------------------
-    # ارسال عکس + متن خوش‌آمد
-    # ------------------------------
-
+    # پیام خوش‌آمد
     photo = FSInputFile("designs.jpg")
 
     caption = (
         "🎉 *به دنیای طراحی‌های اختصاصی بلاکسی خوش آمدید\\!*\\n\\n"
-        "اینجا جاییه که می‌تونی پروفایل‌های حرفه‌ای، تمیز و چشم‌نواز مخصوص خودت بسازی؛ "
-        "پروفایل‌هایی که دقیقاً مطابق سلیقه‌ت طراحی می‌شن و ظاهر اکانتت رو چند برابر جذاب‌تر می‌کنن\\.\\n\\n"
-        "برای شروع، فقط کافیه *لینک رفرال اختصاصی خودت* رو دریافت کنی و با دعوت دوستانت، "
-        "امتیاز لازم برای ثبت سفارش رو جمع کنی\\. هر کاربری که با لینک تو وارد بات بشه، "
-        "یک قدم به دریافت پروفایل حرفه‌ای نزدیک‌تر می‌شی\\.\\n\\n"
-        "این بات کاملاً ساده، سریع و بدون پیچیدگی طراحی شده تا تجربه‌ای راحت و روان داشته باشی\\. "
-        "تمام مراحل — از دریافت لینک رفرال تا انتخاب طرح و ارسال اسکین — مرحله‌به‌مرحله و بدون دردسر انجام می‌شه\\.\\n\\n"
-        "اگر آماده‌ای، همین حالا شروع کن و اولین قدم رو بردار\\.\\n\\n"
+        "اینجا جاییه که می‌تونی پروفایل‌های حرفه‌ای، تمیز و چشم‌نواز مخصوص خودت بسازی\\.\\n\\n"
+        "برای شروع، فقط کافیه *لینک رفرال اختصاصی خودت* رو دریافت کنی و با دعوت دوستانت "
+        "امتیاز لازم برای ثبت سفارش رو جمع کنی\\.\\n\\n"
         "📩 ارتباط با طراح:\\n"
         "\\@BloxyDesign"
     )
@@ -76,8 +94,21 @@ async def start(message: Message):
     await message.answer_photo(
         photo=photo,
         caption=caption,
-        reply_markup=join_channel_keyboard(),
         parse_mode="MarkdownV2"
     )
 
     await message.answer("👇 از منوی زیر استفاده کنید:", reply_markup=main_menu)
+
+
+# هندلر دکمه تایید عضویت
+@router.callback_query(lambda c: c.data == "check_join")
+async def check_join(callback, bot: Bot):
+
+    try:
+        member = await bot.get_chat_member(CHANNEL_ID, callback.from_user.id)
+        if member.status != "left":
+            await callback.message.edit_text("✔️ عضویت تایید شد. دوباره /start بزنید.")
+        else:
+            await callback.answer("❌ هنوز عضو کانال نیستی!", show_alert=True)
+    except:
+        await callback.answer("❌ هنوز عضو کانال نیستی!", show_alert=True)
