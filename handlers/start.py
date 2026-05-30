@@ -12,15 +12,15 @@ from handlers.membership import check_membership, force_join_keyboard
 router = Router()
 logging.basicConfig(level=logging.INFO)
 
-# کانال (در صورت نیاز استفاده کن)
 CHANNEL_ID = -1002100624495
 
 # تابع کمکی برای escape کردن متن در MarkdownV2
-MDV2_SPECIAL = r'[_*
+# توجه: از نقل‌قول دوتایی استفاده شده تا هیچ تداخل با ' یا " داخل الگو پیش نیاید
+MDV2_SPECIAL = r"[_*
 
 \[\]
 
-()~`>#+\-=|{}.!]'
+()~`>#+\-=|{}.!]"
 
 def escape_md_v2(text: str) -> str:
     return re.sub(MDV2_SPECIAL, lambda m: "\\" + m.group(0), text)
@@ -28,17 +28,9 @@ def escape_md_v2(text: str) -> str:
 
 @router.message(CommandStart())
 async def start(message: Message, bot: Bot):
-    """
-    هندلر /start:
-    - رفرال را قبل از چک عضویت ذخیره می‌کند
-    - در صورت وجود webhook فعال، آن را حذف می‌کند تا Conflict رفع شود
-    - متن خوش‌آمد با escape مناسب ارسال می‌شود
-    - لاگ‌گذاری برای دیباگ اضافه شده
-    """
-
     logging.info("start handler hit for user %s", message.from_user.id)
 
-    # حذف webhook (اگر webhook ست شده باشد) تا Conflict با polling رفع شود
+    # حذف webhook در صورت وجود تا از Conflict جلوگیری شود
     try:
         await bot.delete_webhook(drop_pending_updates=True)
     except Exception as e:
@@ -57,23 +49,18 @@ async def start(message: Message, bot: Bot):
             )
             user = result.scalar_one_or_none()
 
-            # اگر کاربر جدید است → رفرال ثبت شود
             if not user:
-
                 referred_by = None
 
-                # اگر لینک رفرال وجود داشت
                 if len(args) > 1:
                     try:
                         referred_by = int(args[1])
                     except:
                         referred_by = None
 
-                # جلوگیری از رفرال خودکار
                 if referred_by == message.from_user.id:
                     referred_by = None
 
-                # ثبت کاربر جدید
                 new_user = User(
                     id=message.from_user.id,
                     username=message.from_user.username,
@@ -81,7 +68,6 @@ async def start(message: Message, bot: Bot):
                 )
                 session.add(new_user)
 
-                # افزایش رفرال معرف
                 if referred_by:
                     ref_result = await session.execute(
                         select(User).where(User.id == referred_by)
@@ -109,7 +95,6 @@ async def start(message: Message, bot: Bot):
             return
     except Exception as e:
         logging.exception("check_membership error: %s", e)
-        # اگر چک عضویت خطا داد، اجازه بده کاربر ادامه دهد یا پیام خطا بده
         await message.answer("❗ خطا در بررسی عضویت. لطفا دوباره تلاش کن.")
         return
 
@@ -136,11 +121,11 @@ async def start(message: Message, bot: Bot):
         await message.answer_photo(
             photo=photo,
             caption=safe_caption,
-            parse_mode=None
+            parse_mode="MarkdownV2"
         )
     except Exception as e:
         logging.exception("Failed to send welcome photo with MarkdownV2: %s", e)
-        # اگر MarkdownV2 مشکل داشت، متن ساده بفرست
+        # fallback: ارسال بدون فرمت
         try:
             await message.answer_photo(photo=photo, caption=caption, parse_mode=None)
         except Exception as e2:
@@ -153,9 +138,6 @@ async def start(message: Message, bot: Bot):
         logging.exception("Failed to send main menu: %s", e)
 
 
-# ============================
-# دکمه تایید عضویت
-# ============================
 @router.callback_query(lambda c: c.data == "check_join")
 async def check_join(callback, bot: Bot):
     try:
