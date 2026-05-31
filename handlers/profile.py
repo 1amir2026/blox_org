@@ -134,8 +134,16 @@ def light_color_keyboard():
         [InlineKeyboardButton(text="🔵 آبی", callback_data="light_blue")],
         [InlineKeyboardButton(text="🟣 بنفش", callback_data="light_purple")],
         [InlineKeyboardButton(text="⚪ سفید", callback_data="light_white")],
+
+        # 🎨 رنگ‌های جدید:
+        [InlineKeyboardButton(text="🟢 سبز", callback_data="light_green")],
+        [InlineKeyboardButton(text="🟡 زرد", callback_data="light_yellow")],
+        [InlineKeyboardButton(text="🟠 نارنجی", callback_data="light_orange")],
+        [InlineKeyboardButton(text="🌸 صورتی", callback_data="light_pink")],
+        [InlineKeyboardButton(text="🟤 قهوه‌ای", callback_data="light_pink")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+
 
 
 # ====================== انتخاب رنگ نور ======================
@@ -169,6 +177,15 @@ def bg_color_keyboard():
         [InlineKeyboardButton(text="⬛ مشکی", callback_data="bg_black")],
         [InlineKeyboardButton(text="🌊 آبی تیره", callback_data="bg_darkblue")],
         [InlineKeyboardButton(text="🟣 بنفش", callback_data="bg_purple")],
+        [InlineKeyboardButton(text="🔴 قرمز", callback_data="light_red")],
+        [InlineKeyboardButton(text="⚪ سفید", callback_data="light_white")],
+
+        # 🎨 رنگ‌های جدید:
+        [InlineKeyboardButton(text="🟢 سبز", callback_data="bg_green")],
+        [InlineKeyboardButton(text="🟡 زرد", callback_data="bg_yellow")],
+        [InlineKeyboardButton(text="🟠 نارنجی", callback_data="bg_orange")],
+        [InlineKeyboardButton(text="🌸 صورتی", callback_data="bg_pink")],
+        [InlineKeyboardButton(text="🟤 قهوه‌ای", callback_data="bg_pink")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
