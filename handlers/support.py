@@ -33,15 +33,15 @@ async def support_message(message: Message):
 
         waiting_support.pop(user_id)
 
-        text = f"""
+text = f"""
 📩 پیام جدید پشتیبانی
 
-👤 آیدی:
-{user_id}
+👤 کاربر: {user_id}
 
 💬 پیام:
 {message.text}
 """
+
 
         await message.bot.send_message(ADMIN_ID, text)
         await message.answer("✅ پیام شما برای پشتیبانی ارسال شد.")
