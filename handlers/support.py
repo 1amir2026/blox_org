@@ -42,7 +42,6 @@ text = f"""
 {message.text}
 """
 
-
         await message.bot.send_message(ADMIN_ID, text)
         await message.answer("✅ پیام شما برای پشتیبانی ارسال شد.")
 
