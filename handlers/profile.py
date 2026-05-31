@@ -140,7 +140,7 @@ def light_color_keyboard():
         [InlineKeyboardButton(text="🟡 زرد", callback_data="light_yellow")],
         [InlineKeyboardButton(text="🟠 نارنجی", callback_data="light_orange")],
         [InlineKeyboardButton(text="🌸 صورتی", callback_data="light_pink")],
-        [InlineKeyboardButton(text="🟤 قهوه‌ای", callback_data="light_pink")],
+        [InlineKeyboardButton(text="🟤 قهوه‌ای", callback_data="light_brown")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
@@ -185,7 +185,7 @@ def bg_color_keyboard():
         [InlineKeyboardButton(text="🟡 زرد", callback_data="bg_yellow")],
         [InlineKeyboardButton(text="🟠 نارنجی", callback_data="bg_orange")],
         [InlineKeyboardButton(text="🌸 صورتی", callback_data="bg_pink")],
-        [InlineKeyboardButton(text="🟤 قهوه‌ای", callback_data="bg_pink")],
+        [InlineKeyboardButton(text="🟤 قهوه‌ای", callback_data="bg_brown")],
     ]
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
