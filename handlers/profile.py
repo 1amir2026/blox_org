@@ -14,20 +14,19 @@ from sqlalchemy import select
 
 from database.models import AsyncSessionLocal, User
 from utils.states import ProfileStates
+from handlers.membership import check_membership, force_join_keyboard   # ← فقط این اضافه شد
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
-# نیازمندی رفرال برای هر طرح
 REF_REQUIREMENTS = {
-    "design_1": 2,   # پروفایل 1 → 2 رفرال
-    "design_2": 3,   # پروفایل 2 → 3 رفرال
-    "design_3": 5,   # والپیپر → 5 رفرال
+    "design_1": 2,
+    "design_2": 3,
+    "design_3": 5,
 }
 
-# نام طرح‌ها
 DESIGN_NAMES = {
     "design_1": "پروفایل 1",
     "design_2": "پروفایل 2",
@@ -35,7 +34,6 @@ DESIGN_NAMES = {
 }
 
 
-# ====================== کیبورد انتخاب طرح + کپشن ======================
 async def design_keyboard_for_user_and_caption(user_id: int):
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.id == user_id))
@@ -71,6 +69,12 @@ async def design_keyboard_for_user_and_caption(user_id: int):
 # ====================== درخواست پروفایل ======================
 @router.message(F.text == "🖼 درخواست پروفایل")
 async def request_profile(message: Message, state: FSMContext):
+
+    # 🔥 چک عضویت
+    if not await check_membership(message.bot, message.from_user.id):
+        await message.answer("⚠️ برای استفاده از این بخش باید عضو کانال باشید:", reply_markup=force_join_keyboard())
+        return
+
     try:
         photo = FSInputFile("designs.jpg")
     except Exception:
@@ -89,6 +93,12 @@ async def request_profile(message: Message, state: FSMContext):
 # ====================== انتخاب طرح ======================
 @router.callback_query(F.data.startswith("design_"))
 async def choose_design(callback: CallbackQuery, state: FSMContext):
+
+    # 🔥 چک عضویت
+    if not await check_membership(callback.bot, callback.from_user.id):
+        await callback.message.answer("⚠️ برای ادامه باید عضو کانال باشید:", reply_markup=force_join_keyboard())
+        return
+
     action = callback.data
     await state.update_data(design=action)
 
@@ -131,6 +141,12 @@ def light_color_keyboard():
 # ====================== انتخاب رنگ نور ======================
 @router.callback_query(F.data.startswith("light_"))
 async def choose_light(callback: CallbackQuery, state: FSMContext):
+
+    # 🔥 چک عضویت
+    if not await check_membership(callback.bot, callback.from_user.id):
+        await callback.message.answer("⚠️ برای ادامه باید عضو کانال باشید:", reply_markup=force_join_keyboard())
+        return
+
     light_color = callback.data.split("_", 1)[1]
     await state.update_data(light_color=light_color)
 
@@ -160,6 +176,12 @@ def bg_color_keyboard():
 # ====================== انتخاب رنگ بکگراند ======================
 @router.callback_query(F.data.startswith("bg_"))
 async def choose_bg(callback: CallbackQuery, state: FSMContext):
+
+    # 🔥 چک عضویت
+    if not await check_membership(callback.bot, callback.from_user.id):
+        await callback.message.answer("⚠️ برای ادامه باید عضو کانال باشید:", reply_markup=force_join_keyboard())
+        return
+
     bg_color = callback.data.split("_", 1)[1]
     await state.update_data(bg_color=bg_color)
 
@@ -173,31 +195,35 @@ async def choose_bg(callback: CallbackQuery, state: FSMContext):
     await state.set_state(ProfileStates.waiting_for_skin)
 
 
-# ====================== دریافت اسکین (فقط document با mime image/*) ======================
+# ====================== دریافت اسکین ======================
 @router.message(ProfileStates.waiting_for_skin)
 async def receive_skin_only_file_image(message: Message, state: FSMContext):
 
+    # 🔥 چک عضویت
+    if not await check_membership(message.bot, message.from_user.id):
+        await message.answer("⚠️ برای ادامه باید عضو کانال باشید:", reply_markup=force_join_keyboard())
+        return
+
     if not message.document:
-        await message.answer("❗ لطفاً عکس را به‌صورت *فایل* ارسال کن (Send as File). عکس‌های معمولی (photo) پذیرفته نمی‌شوند.")
+        await message.answer("❗ لطفاً عکس را به‌صورت *فایل* ارسال کن (Send as File). عکس‌های معمولی پذیرفته نمی‌شوند.")
         return
 
     mime = getattr(message.document, "mime_type", "") or ""
     if not mime.startswith("image/"):
-        await message.answer("❗ فایل ارسال‌شده تصویر نیست. لطفاً همان تصویر را به‌صورت فایل (image) ارسال کن.")
+        await message.answer("❗ فایل ارسال‌شده تصویر نیست. لطفاً همان تصویر را به‌صورت فایل ارسال کن.")
         return
 
     data = await state.get_data()
     design_action = data.get("design")
 
     if not design_action:
-        await message.answer("❗ خطا: طرح انتخابی پیدا نشد. دوباره از منو انتخاب کنید.")
+        await message.answer("❗ خطا: طرح انتخابی پیدا نشد.")
         await state.clear()
         return
 
     required = REF_REQUIREMENTS.get(design_action, 1)
     design_name = DESIGN_NAMES.get(design_action, "سفارش")
 
-    # بررسی رفرال
     async with AsyncSessionLocal() as session:
         user = await session.get(User, message.from_user.id)
         current_refs = user.referrals_count if user and user.referrals_count else 0
@@ -211,13 +237,11 @@ async def receive_skin_only_file_image(message: Message, state: FSMContext):
                 f"⚠️ برای سفارش {design_name} نیاز به {required} رفرال داری.\n"
                 f"🔹 شما اکنون: {current_refs} رفرال داری.\n"
                 f"🔸 برای تکمیل نیاز، {need} رفرال دیگر لازم است.\n\n"
-                f"لینک رفرال شما:\n{ref_link}\n\n"
-                "دوستات رو دعوت کن و بعد دوباره تلاش کن."
+                f"لینک رفرال شما:\n{ref_link}"
             )
             await state.clear()
             return
 
-    # کپشن سفارش برای ادمین
     caption = (
         "🆕 سفارش جدید پروفایل بلاکسی\n\n"
         f"👤 کاربر: {message.from_user.id}\n"
@@ -227,7 +251,6 @@ async def receive_skin_only_file_image(message: Message, state: FSMContext):
         f"🖼 بکگراند: {data.get('bg_color')}\n"
     )
 
-    # ارسال سفارش به ادمین + کم کردن رفرال
     try:
         await message.bot.send_document(
             ADMIN_ID,
@@ -235,7 +258,6 @@ async def receive_skin_only_file_image(message: Message, state: FSMContext):
             caption=caption
         )
 
-        # 🔥 کم کردن رفرال بر اساس طرح انتخابی
         async with AsyncSessionLocal() as session:
             user = await session.get(User, message.from_user.id)
             if user and user.referrals_count >= required:
@@ -244,9 +266,9 @@ async def receive_skin_only_file_image(message: Message, state: FSMContext):
 
     except Exception as e:
         logger.exception("Failed to send order to admin: %s", e)
-        await message.answer("❗ خطا در ارسال سفارش به ادمین. لطفا بعدا تلاش کن.")
+        await message.answer("❗ خطا در ارسال سفارش به ادمین.")
         await state.clear()
         return
 
-    await message.answer("✅ سفارش شما ارسال شد. به زودی پروفایل برایتان ساخته می‌شود.")
+    await message.answer("✅ سفارش شما ارسال شد. به زودی پروفایل آماده می‌شود.")
     await state.clear()
